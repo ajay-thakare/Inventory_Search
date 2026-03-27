@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zeerostock Inventory Search
 
-## Getting Started
+A simple inventory search feature with filtering — built with Next.js, TypeScript, and Tailwind CSS.
 
-First, run the development server:
+## Setup
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+GET /api/search?q=cotton&category=Textiles&minPrice=100&maxPrice=5000
+```
 
-## Learn More
+| Param      | Description                              |
+| ---------- | ---------------------------------------- |
+| `q`        | Product name (partial, case-insensitive) |
+| `category` | Exact category match                     |
+| `minPrice` | Minimum price (₹)                        |
+| `maxPrice` | Maximum price (₹)                        |
 
-To learn more about Next.js, take a look at the following resources:
+All params optional. No filters → returns all records.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Search Logic
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Filters are applied sequentially on an in-memory array inside `lib/search.ts` — a pure function decoupled from the API layer.
 
-## Deploy on Vercel
+- **Name match** — lowercases both query and record name, uses `.includes()` for partial matching
+- **Category** — exact match after lowercasing
+- **Price range** — `>=` minPrice and `<=` maxPrice, applied independently
+- **Validation** runs before search — invalid price range returns `400` immediately
+- **Debouncing** (300ms) on the frontend prevents an API call on every keystroke
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Performance Improvement for Large Datasets
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The current approach does a full linear scan — O(n) per request. For large datasets, I'd switch to a real database (PostgreSQL) and add
+indexes on `name`, `category`, and `price` columns so queries don't
+scan every row. I'd also add caching for repeated searches so the
+database isn't hit every time.
