@@ -1,65 +1,123 @@
-import Image from "next/image";
+"use client";
+
+import { validatePriceParams } from "@/lib/search";
+import { FilterState, InventoryItem } from "@/types/inventory";
+import { useCallback, useEffect, useState } from "react";
+import { SearchBar } from "@/components/searchBar";
+import { Filters } from "@/components/filters";
+import { ResultsTable } from "@/components/resultTable";
+import { EmptyState } from "@/components/emptyState";
+
+const DEFAULT_FILTERS: FilterState = {
+  q: "",
+  category: "",
+  minPrice: "",
+  maxPrice: "",
+};
 
 export default function Home() {
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [results, setResults] = useState<InventoryItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [priceError, setPriceError] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
+
+  const fetchResults = useCallback(async (f: FilterState) => {
+    const error = validatePriceParams(f.minPrice, f.maxPrice);
+    if (error) {
+      setPriceError(error);
+      return;
+    }
+    setPriceError(null);
+
+    const params = new URLSearchParams();
+    if (f.q) params.set("q", f.q);
+    if (f.category && f.category !== "all") params.set("category", f.category);
+    if (f.minPrice) params.set("minPrice", f.minPrice);
+    if (f.maxPrice) params.set("maxPrice", f.maxPrice);
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/search?${params.toString()}`);
+      const data = await res.json();
+      setResults(data.data ?? []);
+      setTotal(data.total ?? 0);
+    } catch (err) {
+      console.error("Search failed:", err);
+    } finally {
+      setLoading(false);
+      setHasFetched(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchResults(filters);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters, fetchResults]);
+
+  const updateFilter = (key: keyof FilterState, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters(DEFAULT_FILTERS);
+    setPriceError(null);
+  };
+
+  const hasActiveFilters = Object.values(filters).some((v) => v !== "");
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="max-w-6xl mx-auto px-4 py-10">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">Inventory Search</h1>
+        <p className="text-muted-foreground mt-1">
+          Browse surplus inventory from suppliers across India
+        </p>
+      </div>
+
+      {/* Search + Filters */}
+      <div className="flex flex-col gap-4 mb-8 p-4 border rounded-lg bg-card">
+        <SearchBar value={filters.q} onChange={(v) => updateFilter("q", v)} />
+        <Filters
+          category={filters.category}
+          minPrice={filters.minPrice}
+          maxPrice={filters.maxPrice}
+          priceError={priceError}
+          onCategoryChange={(v) => updateFilter("category", v)}
+          onMinPriceChange={(v) => updateFilter("minPrice", v)}
+          onMaxPriceChange={(v) => updateFilter("maxPrice", v)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="self-start text-sm text-muted-foreground underline hover:text-foreground"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            Clear all filters
+          </button>
+        )}
+      </div>
+
+      {/* Results */}
+      <div className="rounded-md border min-h-125">
+        {loading && (
+          <div className="animate-pulse p-4 space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-10 bg-muted rounded" />
+            ))}
+          </div>
+        )}
+
+        {!loading && hasFetched && results.length === 0 && (
+          <EmptyState query={filters.q} />
+        )}
+
+        {!loading && results.length > 0 && (
+          <ResultsTable items={results} total={total} />
+        )}
+      </div>
+    </main>
   );
 }

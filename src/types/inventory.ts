@@ -34,3 +34,10 @@ export interface ErrorResponse {
   error: string;
   code: string;
 }
+
+export type FilterState = {
+  q: string;
+  category: string;
+  minPrice: string;
+  maxPrice: string;
+};
